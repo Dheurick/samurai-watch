@@ -17,7 +17,7 @@
 <body>
 <main>
   <header class="top">
-    <div class="brand"><div class="mark">武</div><div><h1>SAMURAI WATCH</h1><div class="sub">Companion · versão inicial</div></div></div>
+    <div class="brand"><div class="mark">武</div><div><h1>SAMURAI WATCH</h1><div class="sub">Companion · laboratório WhatsApp 2</div></div></div>
     <div class="status"><i id="dot" class="dot"></i><span id="statusText">Desconectado</span></div>
   </header>
 
@@ -47,18 +47,31 @@
       <button id="steps" disabled>Consultar passos</button>
       <button id="version" disabled>Consultar firmware</button>
       <button id="face" disabled>Consultar mostrador</button>
-      <button id="faceLayout" disabled>Ler layout (0x39)</button>
-      <button id="faceSupport" disabled>Ver suporte (0x84)</button>
     </div>
-    <p class="note">Comandos de consulta e testes já realizados. As novas consultas 0x39 e 0x84 apenas leem informações; esta versão não envia arquivos nem altera o mostrador.</p>
+    <p class="note">Comandos experimentais baseados nos testes de protocolo já realizados com este modelo. Nem todos os relógios/firmwares respondem da mesma forma.</p>
   </section>
 
   <section class="card">
-    <p class="eyebrow">Teste de mensagem WhatsApp</p>
-    <label for="testMessage">Texto que será enviado ao relógio</label>
-    <input id="testMessage" value="Teste Samurai Watch: mensagem recebida!" maxlength="120">
-    <button id="sendTestMessage" class="primary wide" disabled>Enviar mensagem de teste</button>
-    <p class="note">Envia uma mensagem experimental pelo comando MOYOUNG 0x41, usando o tipo 0x08 (WhatsApp). Isso testa a exibição no relógio; não envia mensagem real pelo WhatsApp do iPhone.</p>
+    <p class="eyebrow">Laboratório de notificações WhatsApp</p>
+    <label for="testMessage">Mensagem de teste</label>
+    <textarea id="testMessage" rows="3" maxlength="180" style="width:100%;resize:vertical;border:1px solid var(--line);background:#0d121b;color:var(--text);border-radius:12px;padding:12px;font:inherit;margin-bottom:9px">Teste Samurai Watch: mensagem recebida!</textarea>
+    <div class="grid" style="margin-bottom:9px">
+      <button type="button" class="msgPreset" data-text="Oi! Esta é uma mensagem curta.">Teste curto</button>
+      <button type="button" class="msgPreset" data-text="Olá! Estamos testando como o Btalk Lite organiza uma mensagem maior, com várias palavras e uma frase completa na tela.">Teste longo</button>
+      <button type="button" class="msgPreset" data-text="Primeira linha\nSegunda linha\nTerceira linha">Teste com quebras</button>
+      <button type="button" class="msgPreset" data-text="Mensagem: ação, coração, você. 123!">Acentos e números</button>
+    </div>
+    <div class="row" style="align-items:center;margin-bottom:9px"><span class="note" id="messageBytes" style="margin:0">0 / 180 bytes</span><span class="note" style="margin:0;text-align:right">Tipo WhatsApp · 0x08</span></div>
+    <button id="sendTestMessage" class="primary wide" disabled>Enviar teste de texto</button>
+    <div style="height:1px;background:var(--line);margin:16px 0"></div>
+    <p class="eyebrow" style="margin-bottom:8px">Experimento: título + mensagem</p>
+    <label for="messageTitle">Título / remetente</label>
+    <input id="messageTitle" value="SAMURAI" maxlength="24">
+    <label for="messageBody">Corpo da mensagem</label>
+    <textarea id="messageBody" rows="2" maxlength="120" style="width:100%;resize:vertical;border:1px solid var(--line);background:#0d121b;color:var(--text);border-radius:12px;padding:12px;font:inherit;margin-bottom:9px">Oi! Teste de título e conteúdo.</textarea>
+    <button id="sendTitleBody" class="primary wide" disabled>Enviar título + mensagem</button>
+    <p class="note">Experimento baseado em outra implementação pública do protocolo, que descreve o formato texto como “Título:Corpo”. Não é um comando de tema: vamos verificar se o firmware separa o título do texto ou apenas mostra tudo junto. Não altera o relógio permanentemente.</p>
+    <p class="note">Os testes usam o comando 0x41 / tipo 0x08. Não enviam mensagens reais pelo WhatsApp do iPhone.</p>
   </section>
 
   <section class="card">
@@ -71,7 +84,7 @@
 const $=id=>document.getElementById(id);
 const U=n=>'0000'+n.toString(16).padStart(4,'0')+'-0000-1000-8000-00805f9b34fb';
 const SVC=U(0xfeea),CMD=U(0xfee2),RX=[U(0xfee1),U(0xfee3)],BATT=U(0x180f),BATTL=U(0x2a19),HRS=U(0x180d),HRM=U(0x2a37);
-let device=null,cmd=null,fileChar=null,hrChar=null,hrOn=false,rxBuf=[];
+let device=null,cmd=null,hrChar=null,hrOn=false,rxBuf=[];
 const diagnostic=[];
 function log(s,level='INFO'){
   const stamp=new Date().toISOString();
@@ -99,12 +112,27 @@ async function copyLog(){
     msg('Log copiado. Agora é só colar aqui na conversa.','good');
   }catch(e){msg('Não foi possível copiar: '+e.message,'bad')}
 }
+function updateMessageBytes(){
+  const n=new TextEncoder().encode($('testMessage').value).length;
+  $('messageBytes').textContent=n+' / 180 bytes';
+  $('messageBytes').className='note'+(n>180?' bad':'');
+}
 function sendTestMessage(){
-  const text=$('testMessage').value.trim();
-  if(!text){msg('Digite o texto da mensagem de teste.','bad');return}
+  const text=$('testMessage').value;
+  if(!text.trim()){msg('Digite o texto da mensagem de teste.','bad');return}
   const bytes=Array.from(new TextEncoder().encode(text));
   if(bytes.length>180){msg('Reduza a mensagem para até 180 bytes.','bad');return}
-  log('Teste WhatsApp solicitado | comando 0x41 | tipo 0x08 | texto: '+text);
+  log('LAB WHATSAPP | comando 0x41 | tipo 0x08 | UTF-8 bytes='+bytes.length+' | texto='+JSON.stringify(text));
+  send(0x41,[0x08,...bytes]);
+}
+function sendTitleBody(){
+  const title=$('messageTitle').value.trim();
+  const body=$('messageBody').value.trim();
+  if(!title||!body){msg('Preencha o título e o corpo da mensagem.','bad');return}
+  const text=title+':'+body;
+  const bytes=Array.from(new TextEncoder().encode(text));
+  if(bytes.length>180){msg('Reduza título ou mensagem para até 180 bytes no total.','bad');return}
+  log('LAB WHATSAPP TITLE:BODY | comando 0x41 | tipo 0x08 | bytes='+bytes.length+' | conteúdo='+JSON.stringify(text));
   send(0x41,[0x08,...bytes]);
 }
 function exportDiagnostics(){
@@ -126,7 +154,7 @@ function msg(s,kind=''){ $('message').textContent=s;$('message').className='note
 function connected(on){
   $('dot').classList.toggle('on',on);$('statusText').textContent=on?'Conectado':'Desconectado';
   $('disconnect').disabled=!on;$('connect').disabled=on;$('all').disabled=on;
-  ['buzz','steps','version','face','faceLayout','faceSupport','hr','sendTestMessage'].forEach(id=>$(id).disabled=!on);
+  ['buzz','steps','version','face','hr','sendTestMessage','sendTitleBody'].forEach(id=>$(id).disabled=!on);
   if(!on){$('battery').textContent='--';$('heart').textContent='--';$('heartState').textContent='Aguardando leitura';hrOn=false;$('hr').textContent='Ativar leitura ao vivo'}
 }
 function packet(c,p=[]){const n=5+p.length;return new Uint8Array([254,234,32+((n>>8)&255),n&255,c,...p])}
@@ -180,7 +208,6 @@ async function connect(all=false){
     }
     const svc=await server.getPrimaryService(SVC);
     cmd=await svc.getCharacteristic(CMD);
-    try{fileChar=await svc.getCharacteristic(U(0xfee6));log('CANAL DE ARQUIVOS FEE6 encontrado | '+describeProperties(fileChar)+' | apenas identificado, não será usado nesta etapa.')}catch(e){fileChar=null;log('CANAL FEE6 não encontrado: '+e.message,'WARN')}
     log('Canal de comandos selecionado: '+cmd.uuid+' | '+describeProperties(cmd));
     // Attach protocol parser to the two known MOYOUNG receive characteristics.
     for(const id of RX){
@@ -206,12 +233,14 @@ async function connect(all=false){
 }
 $('connect').onclick=()=>connect(false);$('all').onclick=()=>connect(true);$('disconnect').onclick=()=>device?.gatt?.disconnect();
 $('buzz').onclick=()=>send(0x61);$('steps').onclick=()=>send(0x59,[0x00]);$('version').onclick=()=>send(0x2e);$('face').onclick=()=>send(0x29);
-$('faceLayout').onclick=()=>{log('Consulta somente de leitura: layout/dimensões do mostrador (0x39).');send(0x39)};
-$('faceSupport').onclick=()=>{log('Consulta somente de leitura: suporte de mostradores (0x84).');send(0x84)};
 $('clear').onclick=()=>{$('log').textContent='Registro limpo.';diagnostic.length=0;};
 $('copyLog').onclick=copyLog;
 $('export').onclick=exportDiagnostics;
 $('sendTestMessage').onclick=sendTestMessage;
+$('sendTitleBody').onclick=sendTitleBody;
+$('testMessage').addEventListener('input',updateMessageBytes);
+document.querySelectorAll('.msgPreset').forEach(b=>b.onclick=()=>{$('testMessage').value=b.dataset.text;updateMessageBytes();});
+updateMessageBytes();
 $('hr').onclick=async()=>{
   if(!hrChar){msg('Canal padrão de frequência cardíaca indisponível.','bad');return}
   try{if(hrOn){await hrChar.stopNotifications();hrOn=false;$('hr').textContent='Ativar leitura ao vivo';$('heartState').textContent='Leitura pausada'}
