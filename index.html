@@ -17,7 +17,7 @@
 <body>
 <main>
   <header class="top">
-    <div class="brand"><div class="mark">武</div><div><h1>SAMURAI WATCH</h1><div class="sub">Companion · laboratório WhatsApp 2</div></div></div>
+    <div class="brand"><div class="mark">武</div><div><h1>SAMURAI WATCH</h1><div class="sub">Companion · investigação firmware V3</div></div></div>
     <div class="status"><i id="dot" class="dot"></i><span id="statusText">Desconectado</span></div>
   </header>
 
@@ -28,6 +28,13 @@
     <div class="row"><button id="connect" class="primary">Conectar relógio</button><button id="all">Buscar dispositivos</button></div>
     <button id="disconnect" class="wide" style="margin-top:9px" disabled>Desconectar</button>
     <p id="message" class="note">Abra esta página no iPhone pelo Bluefy e permita o Bluetooth.</p>
+  </section>
+
+  <section class="card">
+    <p class="eyebrow">Investigação do firmware Realtek</p>
+    <p class="note" style="margin-top:0">Verificação somente de leitura dos dados de identificação e dos serviços OTA/DFU. Não ativa atualização, não grava firmware e não envia dados para FFD1, FEE6 ou canais DFU.</p>
+    <button id="inspectFirmware" class="wide" disabled>Inspecionar firmware e canais OTA</button>
+    <p class="note">Vamos verificar se o relógio fornece versão, identificação do chip e características legíveis do serviço D0FF. A presença desse serviço indica um caminho de atualização, não acesso de leitura ao firmware instalado.</p>
   </section>
 
   <section class="card">
@@ -83,8 +90,8 @@
 <script>
 const $=id=>document.getElementById(id);
 const U=n=>'0000'+n.toString(16).padStart(4,'0')+'-0000-1000-8000-00805f9b34fb';
-const SVC=U(0xfeea),CMD=U(0xfee2),RX=[U(0xfee1),U(0xfee3)],BATT=U(0x180f),BATTL=U(0x2a19),HRS=U(0x180d),HRM=U(0x2a37);
-let device=null,cmd=null,hrChar=null,hrOn=false,rxBuf=[];
+const SVC=U(0xfeea),CMD=U(0xfee2),RX=[U(0xfee1),U(0xfee3)],BATT=U(0x180f),BATTL=U(0x2a19),HRS=U(0x180d),HRM=U(0x2a37),DEVINFO=U(0x180a),REALTEK_OTA='0000d0ff-3c17-d293-8e48-14fe2e4da212',REALTEK_DFU='00006287-3c17-d293-8e48-14fe2e4da212';
+let device=null,gattServer=null,cmd=null,hrChar=null,hrOn=false,rxBuf=[];
 const diagnostic=[];
 function log(s,level='INFO'){
   const stamp=new Date().toISOString();
@@ -135,6 +142,44 @@ function sendTitleBody(){
   log('LAB WHATSAPP TITLE:BODY | comando 0x41 | tipo 0x08 | bytes='+bytes.length+' | conteúdo='+JSON.stringify(text));
   send(0x41,[0x08,...bytes]);
 }
+async function inspectFirmware(){
+  if(!gattServer || !gattServer.connected){msg('Conecte o Btalk Lite primeiro.','bad');return}
+  const btn=$('inspectFirmware');btn.disabled=true;btn.textContent='Lendo informações…';
+  const decode=v=>{const a=Array.from(new Uint8Array(v.buffer,v.byteOffset,v.byteLength));return {hex:hex(a),text:new TextDecoder('utf-8').decode(new Uint8Array(a)).replace(/[\u0000-\u001F\u007F]/g,' ').trim()}};
+  try{
+    log('=== INÍCIO DA INSPEÇÃO SOMENTE DE LEITURA ===');
+    // Standard Device Information Service: read only identifying strings.
+    try{
+      const svc=await gattServer.getPrimaryService(DEVINFO);
+      log('SERVIÇO DE INFORMAÇÕES '+svc.uuid);
+      for(const id of [0x2a29,0x2a24,0x2a26,0x2a27,0x2a28]){
+        try{const c=await svc.getCharacteristic(U(id));log('CARACTERÍSTICA '+c.uuid+' | '+describeProperties(c));if(c.properties.read){const v=decode(await c.readValue());log('LEITURA '+c.uuid+' | HEX '+v.hex+(v.text?' | TEXTO '+v.text:''));}}
+        catch(e){log('Característica '+U(id)+' indisponível: '+(e.message||String(e)),'WARN')}
+      }
+    }catch(e){log('Serviço 180A indisponível: '+(e.message||String(e)),'WARN')}
+    // Realtek D0FF normal-firmware OTA service. Never write its FFD1 reset/OTA trigger.
+    try{
+      const svc=await gattServer.getPrimaryService(REALTEK_OTA);
+      log('SERVIÇO REALTEK OTA ENCONTRADO '+svc.uuid);
+      const chars=await svc.getCharacteristics();
+      for(const c of chars){
+        log('OTA CARACTERÍSTICA '+c.uuid+' | propriedades '+describeProperties(c));
+        if(c.properties.read){try{const v=decode(await c.readValue());log('OTA LEITURA '+c.uuid+' | HEX '+v.hex+(v.text?' | TEXTO '+v.text:''));}catch(e){log('Falha ao ler '+c.uuid+': '+(e.message||String(e)),'WARN')}}
+        if(c.uuid.endsWith('ffd1-0000-1000-8000-00805f9b34fb') || c.uuid.endsWith('ffd1-3c17-d293-8e48-14fe2e4da212')) log('SEGURANÇA: FFD1 é somente identificado; nenhum byte foi escrito.');
+      }
+    }catch(e){log('Serviço Realtek D0FF não acessível: '+(e.message||String(e)),'WARN')}
+    // This service is commonly exposed only after switching into bootloader/DFU mode.
+    try{
+      const svc=await gattServer.getPrimaryService(REALTEK_DFU);
+      log('ATENÇÃO: serviço DFU 6287 já está visível nesta sessão. Nenhuma escrita será feita.');
+      const chars=await svc.getCharacteristics();
+      for(const c of chars){log('DFU CARACTERÍSTICA '+c.uuid+' | propriedades '+describeProperties(c));if(c.properties.read){try{const v=decode(await c.readValue());log('DFU LEITURA '+c.uuid+' | HEX '+v.hex+(v.text?' | TEXTO '+v.text:''));}catch(e){log('Falha de leitura DFU '+c.uuid+': '+(e.message||String(e)),'WARN')}}}
+    }catch(e){log('Serviço DFU 6287 não está exposto no modo normal (resultado esperado; não tentamos ativá-lo).')}
+    log('=== FIM DA INSPEÇÃO. NENHUMA ESCRITA OTA/DFU REALIZADA ===');
+    msg('Inspeção concluída. Copie o log para analisarmos.','good');
+  }catch(e){log('Erro na inspeção: '+(e.message||String(e)),'WARN');msg('A inspeção encontrou um erro. Confira o log.','bad')}
+  finally{btn.disabled=!gattServer?.connected;btn.textContent='Inspecionar firmware e canais OTA'}
+}
 function exportDiagnostics(){
   const header=[
     'SAMURAI WATCH - DIAGNOSTICO BLUETOOTH',
@@ -154,7 +199,7 @@ function msg(s,kind=''){ $('message').textContent=s;$('message').className='note
 function connected(on){
   $('dot').classList.toggle('on',on);$('statusText').textContent=on?'Conectado':'Desconectado';
   $('disconnect').disabled=!on;$('connect').disabled=on;$('all').disabled=on;
-  ['buzz','steps','version','face','hr','sendTestMessage','sendTitleBody'].forEach(id=>$(id).disabled=!on);
+  ['buzz','steps','version','face','hr','sendTestMessage','sendTitleBody','inspectFirmware'].forEach(id=>$(id).disabled=!on);
   if(!on){$('battery').textContent='--';$('heart').textContent='--';$('heartState').textContent='Aguardando leitura';hrOn=false;$('hr').textContent='Ativar leitura ao vivo'}
 }
 function packet(c,p=[]){const n=5+p.length;return new Uint8Array([254,234,32+((n>>8)&255),n&255,c,...p])}
@@ -177,10 +222,10 @@ async function connect(all=false){
   try{
     msg('Procurando relógio…');
     const filter=$('prefix').value.trim();
-    device=await navigator.bluetooth.requestDevice(all?{acceptAllDevices:true,optionalServices:[SVC,BATT,HRS]}:{filters:[{namePrefix:filter||'Btalk'}],optionalServices:[SVC,BATT,HRS]});
-    log('Dispositivo selecionado: '+(device.name||'sem nome')+' | id BLE: '+device.id);device.addEventListener('gattserverdisconnected',()=>{log('Evento GATT desconectado.','WARN');cmd=null;hrChar=null;connected(false);msg('Relógio desconectado.')});
+    device=await navigator.bluetooth.requestDevice(all?{acceptAllDevices:true,optionalServices:[SVC,BATT,HRS,DEVINFO,REALTEK_OTA,REALTEK_DFU]}:{filters:[{namePrefix:filter||'Btalk'}],optionalServices:[SVC,BATT,HRS,DEVINFO,REALTEK_OTA,REALTEK_DFU]});
+    log('Dispositivo selecionado: '+(device.name||'sem nome')+' | id BLE: '+device.id);device.addEventListener('gattserverdisconnected',()=>{log('Evento GATT desconectado.','WARN');gattServer=null;cmd=null;hrChar=null;connected(false);msg('Relógio desconectado.')});
     msg('Conectando a '+(device.name||'relógio')+'…');
-    const server=await device.gatt.connect();
+    const server=await device.gatt.connect();gattServer=server;
     log('GATT conectado. Iniciando inventário dos serviços permitidos.');
     let services=[];
     try{services=await server.getPrimaryServices();log('Serviços primários retornados pelo navegador: '+services.map(s=>s.uuid).join(', '))}catch(e){log('Inventário completo de serviços bloqueado/indisponível: '+e.message,'WARN')}
@@ -229,7 +274,7 @@ async function connect(all=false){
       log('Listener específico de frequência cardíaca 2A37 instalado.');
     }catch(e){log('Canal de frequência cardíaca não encontrado: '+e.message,'WARN')}
     connected(true);msg('Conectado a '+(device.name||'relógio')+'.','good');
-  }catch(e){connected(false);msg('Não foi possível conectar: '+e.message,'bad')}
+  }catch(e){gattServer=null;connected(false);msg('Não foi possível conectar: '+(e.message||String(e)),'bad')}
 }
 $('connect').onclick=()=>connect(false);$('all').onclick=()=>connect(true);$('disconnect').onclick=()=>device?.gatt?.disconnect();
 $('buzz').onclick=()=>send(0x61);$('steps').onclick=()=>send(0x59,[0x00]);$('version').onclick=()=>send(0x2e);$('face').onclick=()=>send(0x29);
@@ -238,6 +283,7 @@ $('copyLog').onclick=copyLog;
 $('export').onclick=exportDiagnostics;
 $('sendTestMessage').onclick=sendTestMessage;
 $('sendTitleBody').onclick=sendTitleBody;
+$('inspectFirmware').onclick=inspectFirmware;
 $('testMessage').addEventListener('input',updateMessageBytes);
 document.querySelectorAll('.msgPreset').forEach(b=>b.onclick=()=>{$('testMessage').value=b.dataset.text;updateMessageBytes();});
 updateMessageBytes();
