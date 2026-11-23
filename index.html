@@ -52,7 +52,15 @@
   </section>
 
   <section class="card">
-    <div class="row" style="align-items:center;margin-bottom:10px"><p class="eyebrow" style="margin:0;flex:1">Registro técnico</p><button id="export" style="min-height:34px;padding:6px 10px;font-size:12px">Exportar</button><button id="clear" style="min-height:34px;padding:6px 10px;font-size:12px">Limpar</button></div>
+    <p class="eyebrow">Teste de mensagem WhatsApp</p>
+    <label for="testMessage">Texto que será enviado ao relógio</label>
+    <input id="testMessage" value="Teste Samurai Watch: mensagem recebida!" maxlength="120">
+    <button id="sendTestMessage" class="primary wide" disabled>Enviar mensagem de teste</button>
+    <p class="note">Envia uma mensagem experimental pelo comando MOYOUNG 0x41, usando o tipo 0x08 (WhatsApp). Isso testa a exibição no relógio; não envia mensagem real pelo WhatsApp do iPhone.</p>
+  </section>
+
+  <section class="card">
+    <div class="row" style="align-items:center;margin-bottom:10px"><p class="eyebrow" style="margin:0;flex:1">Registro técnico</p><button id="copyLog" style="min-height:34px;padding:6px 10px;font-size:12px">Copiar log</button><button id="export" style="min-height:34px;padding:6px 10px;font-size:12px">Exportar</button><button id="clear" style="min-height:34px;padding:6px 10px;font-size:12px">Limpar</button></div>
     <pre id="log">Samurai Watch iniciado. Nenhum dispositivo conectado.</pre>
   </section>
   <div class="foot">SAMURAI WATCH · Projeto experimental para Btalk Lite</div>
@@ -74,6 +82,29 @@ function describeProperties(c){
   return ['read','write','writeWithoutResponse','notify','indicate','authenticatedSignedWrites','reliableWrite','writableAuxiliaries']
     .filter(k=>p[k]).join(', ')||'nenhuma propriedade anunciada';
 }
+async function copyLog(){
+  const text=$('log').textContent;
+  try{
+    if(navigator.clipboard && window.isSecureContext){
+      await navigator.clipboard.writeText(text);
+    }else{
+      const area=document.createElement('textarea');
+      area.value=text;area.style.position='fixed';area.style.opacity='0';
+      document.body.appendChild(area);area.focus();area.select();
+      const ok=document.execCommand('copy');area.remove();
+      if(!ok)throw new Error('O navegador não permitiu copiar automaticamente.');
+    }
+    msg('Log copiado. Agora é só colar aqui na conversa.','good');
+  }catch(e){msg('Não foi possível copiar: '+e.message,'bad')}
+}
+function sendTestMessage(){
+  const text=$('testMessage').value.trim();
+  if(!text){msg('Digite o texto da mensagem de teste.','bad');return}
+  const bytes=Array.from(new TextEncoder().encode(text));
+  if(bytes.length>180){msg('Reduza a mensagem para até 180 bytes.','bad');return}
+  log('Teste WhatsApp solicitado | comando 0x41 | tipo 0x08 | texto: '+text);
+  send(0x41,[0x08,...bytes]);
+}
 function exportDiagnostics(){
   const header=[
     'SAMURAI WATCH - DIAGNOSTICO BLUETOOTH',
@@ -93,7 +124,7 @@ function msg(s,kind=''){ $('message').textContent=s;$('message').className='note
 function connected(on){
   $('dot').classList.toggle('on',on);$('statusText').textContent=on?'Conectado':'Desconectado';
   $('disconnect').disabled=!on;$('connect').disabled=on;$('all').disabled=on;
-  ['buzz','steps','version','face','hr'].forEach(id=>$(id).disabled=!on);
+  ['buzz','steps','version','face','hr','sendTestMessage'].forEach(id=>$(id).disabled=!on);
   if(!on){$('battery').textContent='--';$('heart').textContent='--';$('heartState').textContent='Aguardando leitura';hrOn=false;$('hr').textContent='Ativar leitura ao vivo'}
 }
 function packet(c,p=[]){const n=5+p.length;return new Uint8Array([254,234,32+((n>>8)&255),n&255,c,...p])}
@@ -172,7 +203,10 @@ async function connect(all=false){
 }
 $('connect').onclick=()=>connect(false);$('all').onclick=()=>connect(true);$('disconnect').onclick=()=>device?.gatt?.disconnect();
 $('buzz').onclick=()=>send(0x61);$('steps').onclick=()=>send(0x59,[0x00]);$('version').onclick=()=>send(0x2e);$('face').onclick=()=>send(0x29);
-$('clear').onclick=()=>{$('log').textContent='Registro limpo.';diagnostic.length=0;};$('export').onclick=exportDiagnostics;
+$('clear').onclick=()=>{$('log').textContent='Registro limpo.';diagnostic.length=0;};
+$('copyLog').onclick=copyLog;
+$('export').onclick=exportDiagnostics;
+$('sendTestMessage').onclick=sendTestMessage;
 $('hr').onclick=async()=>{
   if(!hrChar){msg('Canal padrão de frequência cardíaca indisponível.','bad');return}
   try{if(hrOn){await hrChar.stopNotifications();hrOn=false;$('hr').textContent='Ativar leitura ao vivo';$('heartState').textContent='Leitura pausada'}
