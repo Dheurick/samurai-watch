@@ -47,8 +47,10 @@
       <button id="steps" disabled>Consultar passos</button>
       <button id="version" disabled>Consultar firmware</button>
       <button id="face" disabled>Consultar mostrador</button>
+      <button id="faceLayout" disabled>Ler layout (0x39)</button>
+      <button id="faceSupport" disabled>Ver suporte (0x84)</button>
     </div>
-    <p class="note">Comandos experimentais baseados nos testes de protocolo já realizados com este modelo. Nem todos os relógios/firmwares respondem da mesma forma.</p>
+    <p class="note">Comandos de consulta e testes já realizados. As novas consultas 0x39 e 0x84 apenas leem informações; esta versão não envia arquivos nem altera o mostrador.</p>
   </section>
 
   <section class="card">
@@ -69,7 +71,7 @@
 const $=id=>document.getElementById(id);
 const U=n=>'0000'+n.toString(16).padStart(4,'0')+'-0000-1000-8000-00805f9b34fb';
 const SVC=U(0xfeea),CMD=U(0xfee2),RX=[U(0xfee1),U(0xfee3)],BATT=U(0x180f),BATTL=U(0x2a19),HRS=U(0x180d),HRM=U(0x2a37);
-let device=null,cmd=null,hrChar=null,hrOn=false,rxBuf=[];
+let device=null,cmd=null,fileChar=null,hrChar=null,hrOn=false,rxBuf=[];
 const diagnostic=[];
 function log(s,level='INFO'){
   const stamp=new Date().toISOString();
@@ -124,7 +126,7 @@ function msg(s,kind=''){ $('message').textContent=s;$('message').className='note
 function connected(on){
   $('dot').classList.toggle('on',on);$('statusText').textContent=on?'Conectado':'Desconectado';
   $('disconnect').disabled=!on;$('connect').disabled=on;$('all').disabled=on;
-  ['buzz','steps','version','face','hr','sendTestMessage'].forEach(id=>$(id).disabled=!on);
+  ['buzz','steps','version','face','faceLayout','faceSupport','hr','sendTestMessage'].forEach(id=>$(id).disabled=!on);
   if(!on){$('battery').textContent='--';$('heart').textContent='--';$('heartState').textContent='Aguardando leitura';hrOn=false;$('hr').textContent='Ativar leitura ao vivo'}
 }
 function packet(c,p=[]){const n=5+p.length;return new Uint8Array([254,234,32+((n>>8)&255),n&255,c,...p])}
@@ -178,6 +180,7 @@ async function connect(all=false){
     }
     const svc=await server.getPrimaryService(SVC);
     cmd=await svc.getCharacteristic(CMD);
+    try{fileChar=await svc.getCharacteristic(U(0xfee6));log('CANAL DE ARQUIVOS FEE6 encontrado | '+describeProperties(fileChar)+' | apenas identificado, não será usado nesta etapa.')}catch(e){fileChar=null;log('CANAL FEE6 não encontrado: '+e.message,'WARN')}
     log('Canal de comandos selecionado: '+cmd.uuid+' | '+describeProperties(cmd));
     // Attach protocol parser to the two known MOYOUNG receive characteristics.
     for(const id of RX){
@@ -203,6 +206,8 @@ async function connect(all=false){
 }
 $('connect').onclick=()=>connect(false);$('all').onclick=()=>connect(true);$('disconnect').onclick=()=>device?.gatt?.disconnect();
 $('buzz').onclick=()=>send(0x61);$('steps').onclick=()=>send(0x59,[0x00]);$('version').onclick=()=>send(0x2e);$('face').onclick=()=>send(0x29);
+$('faceLayout').onclick=()=>{log('Consulta somente de leitura: layout/dimensões do mostrador (0x39).');send(0x39)};
+$('faceSupport').onclick=()=>{log('Consulta somente de leitura: suporte de mostradores (0x84).');send(0x84)};
 $('clear').onclick=()=>{$('log').textContent='Registro limpo.';diagnostic.length=0;};
 $('copyLog').onclick=copyLog;
 $('export').onclick=exportDiagnostics;
