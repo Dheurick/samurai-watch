@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#10131b">
+  <title>Samurai Watch</title>
+  <style>
+    :root{color-scheme:dark;--bg:#0b0e14;--panel:#151a24;--line:#283142;--text:#f4f6fb;--muted:#929db0;--cyan:#55d6e8;--blue:#3977ff;--red:#ff657a;--green:#42d392}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#172338 0,#0b0e14 55%);color:var(--text);font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif;padding:calc(18px + env(safe-area-inset-top)) 16px calc(28px + env(safe-area-inset-bottom))}
+    main{max-width:520px;margin:auto;display:grid;gap:14px}.top{display:flex;align-items:center;justify-content:space-between;gap:12px}.brand{display:flex;align-items:center;gap:11px}.mark{width:42px;height:42px;border-radius:14px;background:linear-gradient(145deg,#55d6e8,#3977ff);display:grid;place-items:center;color:#07111d;font-size:23px;font-weight:900}.brand h1{font-size:20px;letter-spacing:.04em;margin:0}.sub{font-size:11px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}.status{font-size:12px;color:var(--muted);display:flex;align-items:center;gap:7px;white-space:nowrap}.dot{width:8px;height:8px;border-radius:50%;background:#687386}.dot.on{background:var(--green);box-shadow:0 0 12px #42d39288}
+    .card{background:linear-gradient(145deg,#171e2a,#121721);border:1px solid var(--line);border-radius:20px;padding:17px;box-shadow:0 12px 35px #0003}.eyebrow{font-size:11px;color:var(--muted);letter-spacing:.13em;text-transform:uppercase;margin:0 0 12px}.metrics{display:grid;grid-template-columns:1fr 1fr;gap:10px}.metric{background:#0d121b;border:1px solid #252f40;border-radius:15px;padding:14px}.metric strong{font-size:30px;display:block;line-height:1.1;font-variant-numeric:tabular-nums}.metric span{font-size:12px;color:var(--muted)}.metric small{color:var(--cyan);font-size:11px}
+    button{font:inherit;border:1px solid var(--line);background:#202a39;color:var(--text);border-radius:13px;padding:12px 14px;min-height:46px;cursor:pointer}button:disabled{opacity:.38;cursor:not-allowed}.primary{background:linear-gradient(100deg,#3c7cff,#55cfe3);border:0;color:#06121d;font-weight:750}.wide{width:100%}.row{display:flex;gap:9px}.row>*{flex:1;min-width:0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+    label{display:block;color:var(--muted);font-size:12px;margin:0 0 6px}input{width:100%;border:1px solid var(--line);background:#0d121b;color:var(--text);border-radius:12px;padding:12px;font:inherit;min-height:45px;margin-bottom:10px}.note{font-size:12px;color:var(--muted);margin:10px 0 0}.good{color:var(--green)}.bad{color:var(--red)}#log{font:11px/1.55 ui-monospace,monospace;color:#aab6c9;white-space:pre-wrap;word-break:break-word;max-height:160px;overflow:auto;background:#0b1018;padding:11px;border-radius:12px;margin:0}.foot{text-align:center;color:#657186;font-size:11px;padding:4px}
+  </style>
+</head>
+<body>
+<main>
+  <header class="top">
+    <div class="brand"><div class="mark">武</div><div><h1>SAMURAI WATCH</h1><div class="sub">Companion · versão inicial</div></div></div>
+    <div class="status"><i id="dot" class="dot"></i><span id="statusText">Desconectado</span></div>
+  </header>
+
+  <section class="card">
+    <p class="eyebrow">Conexão Bluetooth</p>
+    <label for="prefix">Nome do relógio (filtro opcional)</label>
+    <input id="prefix" value="Btalk" autocomplete="off">
+    <div class="row"><button id="connect" class="primary">Conectar relógio</button><button id="all">Buscar dispositivos</button></div>
+    <button id="disconnect" class="wide" style="margin-top:9px" disabled>Desconectar</button>
+    <p id="message" class="note">Abra esta página no iPhone pelo Bluefy e permita o Bluetooth.</p>
+  </section>
+
+  <section class="card">
+    <p class="eyebrow">Painel de saúde</p>
+    <div class="metrics">
+      <div class="metric"><strong id="battery">--</strong><span>Bateria</span></div>
+      <div class="metric"><strong id="heart">--</strong><span>Frequência cardíaca</span><small id="heartState">Aguardando leitura</small></div>
+    </div>
+    <p class="note">A frequência cardíaca é exibida quando o relógio envia notificações pelo canal padrão. Este controle apenas ativa/desativa a escuta do navegador; não inicia uma medição proprietária.</p>
+    <button id="hr" class="wide" style="margin-top:12px" disabled>Ativar leitura ao vivo</button>
+  </section>
+
+  <section class="card">
+    <p class="eyebrow">Ações rápidas</p>
+    <div class="grid">
+      <button id="buzz" disabled>Vibrar relógio</button>
+      <button id="steps" disabled>Consultar passos</button>
+      <button id="version" disabled>Consultar firmware</button>
+      <button id="face" disabled>Consultar mostrador</button>
+    </div>
+    <p class="note">Comandos experimentais baseados nos testes de protocolo já realizados com este modelo. Nem todos os relógios/firmwares respondem da mesma forma.</p>
+  </section>
+
+  <section class="card">
+    <div class="row" style="align-items:center;margin-bottom:10px"><p class="eyebrow" style="margin:0;flex:1">Registro técnico</p><button id="export" style="min-height:34px;padding:6px 10px;font-size:12px">Exportar</button><button id="clear" style="min-height:34px;padding:6px 10px;font-size:12px">Limpar</button></div>
+    <pre id="log">Samurai Watch iniciado. Nenhum dispositivo conectado.</pre>
+  </section>
+  <div class="foot">SAMURAI WATCH · Projeto experimental para Btalk Lite</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+const U=n=>'0000'+n.toString(16).padStart(4,'0')+'-0000-1000-8000-00805f9b34fb';
+const SVC=U(0xfeea),CMD=U(0xfee2),RX=[U(0xfee1),U(0xfee3)],BATT=U(0x180f),BATTL=U(0x2a19),HRS=U(0x180d),HRM=U(0x2a37);
+let device=null,cmd=null,hrChar=null,hrOn=false,rxBuf=[];
+const diagnostic=[];
+function log(s,level='INFO'){
+  const stamp=new Date().toISOString();
+  const line=`${stamp} [${level}] ${s}`;
+  diagnostic.push(line);
+  $('log').textContent=line+'\\n'+$('log').textContent;
+}
+function describeProperties(c){
+  const p=c.properties;
+  return ['read','write','writeWithoutResponse','notify','indicate','authenticatedSignedWrites','reliableWrite','writableAuxiliaries']
+    .filter(k=>p[k]).join(', ')||'nenhuma propriedade anunciada';
+}
+function exportDiagnostics(){
+  const header=[
+    'SAMURAI WATCH - DIAGNOSTICO BLUETOOTH',
+    'Data: '+new Date().toISOString(),
+    'Dispositivo: '+(device?.name||'não conectado'),
+    'ID BLE: '+(device?.id||'indisponível'),
+    'Observação: este arquivo registra metadados GATT, comandos e notificações BLE; não grava áudio do microfone.',
+    '--------------------------------------------------'
+  ].join('\\n');
+  const blob=new Blob([header+'\\n'+diagnostic.join('\\n')+'\\n'],{type:'text/plain;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');a.href=url;a.download='samurai-watch-diagnostico-'+new Date().toISOString().replace(/[:.]/g,'-')+'.txt';a.click();
+  URL.revokeObjectURL(url);
+  log('Arquivo de diagnóstico exportado.');
+}
+function msg(s,kind=''){ $('message').textContent=s;$('message').className='note '+kind;log(s)}
+function connected(on){
+  $('dot').classList.toggle('on',on);$('statusText').textContent=on?'Conectado':'Desconectado';
+  $('disconnect').disabled=!on;$('connect').disabled=on;$('all').disabled=on;
+  ['buzz','steps','version','face','hr'].forEach(id=>$(id).disabled=!on);
+  if(!on){$('battery').textContent='--';$('heart').textContent='--';$('heartState').textContent='Aguardando leitura';hrOn=false;$('hr').textContent='Ativar leitura ao vivo'}
+}
+function packet(c,p=[]){const n=5+p.length;return new Uint8Array([254,234,32+((n>>8)&255),n&255,c,...p])}
+const hex=a=>Array.from(a,x=>x.toString(16).padStart(2,'0').toUpperCase()).join(' ');
+async function write(bytes){
+  if(!cmd)throw Error('Relógio desconectado');
+  for(let i=0;i<bytes.length;i+=20){const part=bytes.slice(i,i+20);if(cmd.writeValueWithoutResponse)await cmd.writeValueWithoutResponse(part);else await cmd.writeValue(part);await new Promise(r=>setTimeout(r,25))}
+  log('→ '+hex(bytes));
+}
+async function send(c,p=[]){log('Comando solicitado: 0x'+c.toString(16).padStart(2,'0').toUpperCase()+' payload '+hex(p));try{await write(packet(c,p))}catch(e){msg('Falha ao enviar: '+e.message,'bad')}}
+function rx(e){
+  const a=Array.from(new Uint8Array(e.target.value.buffer,e.target.value.byteOffset,e.target.value.byteLength));
+  if(a[0]===254&&a[1]===234)rxBuf=[];
+  rxBuf.push(...a);
+  if(rxBuf.length>=4&&rxBuf[0]===254&&rxBuf[1]===234){const n=((rxBuf[2]-32)<<8)|rxBuf[3];if(rxBuf.length>=n){log('← '+hex(rxBuf.slice(0,n)));rxBuf=[]}}
+  else{log('← '+hex(a));rxBuf=[]}
+}
+async function connect(all=false){
+  if(!navigator.bluetooth){msg('Web Bluetooth não disponível. Abra em navegador compatível no iPhone.','bad');return}
+  try{
+    msg('Procurando relógio…');
+    const filter=$('prefix').value.trim();
+    device=await navigator.bluetooth.requestDevice(all?{acceptAllDevices:true,optionalServices:[SVC,BATT,HRS]}:{filters:[{namePrefix:filter||'Btalk'}],optionalServices:[SVC,BATT,HRS]});
+    log('Dispositivo selecionado: '+(device.name||'sem nome')+' | id BLE: '+device.id);device.addEventListener('gattserverdisconnected',()=>{log('Evento GATT desconectado.','WARN');cmd=null;hrChar=null;connected(false);msg('Relógio desconectado.')});
+    msg('Conectando a '+(device.name||'relógio')+'…');
+    const server=await device.gatt.connect();
+    log('GATT conectado. Iniciando inventário dos serviços permitidos.');
+    let services=[];
+    try{services=await server.getPrimaryServices();log('Serviços primários retornados pelo navegador: '+services.map(s=>s.uuid).join(', '))}catch(e){log('Inventário completo de serviços bloqueado/indisponível: '+e.message,'WARN')}
+    // Inspect known services explicitly requested in Web Bluetooth.
+    for(const sid of [SVC,BATT,HRS]){
+      try{
+        const s=await server.getPrimaryService(sid);
+        log('SERVIÇO '+s.uuid);
+        const chars=await s.getCharacteristics();
+        for(const c of chars){
+          log('  CARACTERÍSTICA '+c.uuid+' | propriedades: '+describeProperties(c));
+          if(c.properties.notify||c.properties.indicate){
+            try{
+              await c.startNotifications();
+              c.addEventListener('characteristicvaluechanged',e=>{
+                const v=e.target.value;
+                const bytes=Array.from(new Uint8Array(v.buffer,v.byteOffset,v.byteLength));
+                log('NOTIFICAÇÃO '+e.target.uuid+' | '+hex(bytes));
+              });
+              log('  Notificações ativadas em '+c.uuid);
+            }catch(err){log('  Não foi possível ativar notificações em '+c.uuid+': '+err.message,'WARN')}
+          }
+        }
+      }catch(e){log('Serviço '+sid+' indisponível: '+e.message,'WARN')}
+    }
+    const svc=await server.getPrimaryService(SVC);
+    cmd=await svc.getCharacteristic(CMD);
+    log('Canal de comandos selecionado: '+cmd.uuid+' | '+describeProperties(cmd));
+    // Attach protocol parser to the two known MOYOUNG receive characteristics.
+    for(const id of RX){
+      try{const c=await svc.getCharacteristic(id);c.removeEventListener('characteristicvaluechanged',rx);c.addEventListener('characteristicvaluechanged',rx);log('Parser MOYOUNG anexado em '+c.uuid)}
+      catch(e){log('Canal MOYOUNG '+id+' indisponível: '+e.message,'WARN')}
+    }
+    try{
+      const b=await(await server.getPrimaryService(BATT)).getCharacteristic(BATTL);
+      $('battery').textContent=(await b.readValue()).getUint8(0)+'%';
+      b.addEventListener('characteristicvaluechanged',e=>$('battery').textContent=e.target.value.getUint8(0)+'%');
+    }catch(e){log('Bateria não disponível: '+e.message,'WARN')}
+    try{
+      hrChar=await(await server.getPrimaryService(HRS)).getCharacteristic(HRM);
+      hrChar.addEventListener('characteristicvaluechanged',e=>{
+        const v=e.target.value,f=v.getUint8(0),bpm=f&1?v.getUint16(1,true):v.getUint8(1);
+        $('heart').textContent=bpm;$('heartState').textContent='Recebendo em tempo real';$('heartState').className='good';
+        log('FREQUÊNCIA CARDÍACA 2A37 | '+bpm+' bpm | bytes: '+hex(Array.from(new Uint8Array(v.buffer,v.byteOffset,v.byteLength))));
+      });
+      log('Listener específico de frequência cardíaca 2A37 instalado.');
+    }catch(e){log('Canal de frequência cardíaca não encontrado: '+e.message,'WARN')}
+    connected(true);msg('Conectado a '+(device.name||'relógio')+'.','good');
+  }catch(e){connected(false);msg('Não foi possível conectar: '+e.message,'bad')}
+}
+$('connect').onclick=()=>connect(false);$('all').onclick=()=>connect(true);$('disconnect').onclick=()=>device?.gatt?.disconnect();
+$('buzz').onclick=()=>send(0x61);$('steps').onclick=()=>send(0x59,[0x00]);$('version').onclick=()=>send(0x2e);$('face').onclick=()=>send(0x29);
+$('clear').onclick=()=>{$('log').textContent='Registro limpo.';diagnostic.length=0;};$('export').onclick=exportDiagnostics;
+$('hr').onclick=async()=>{
+  if(!hrChar){msg('Canal padrão de frequência cardíaca indisponível.','bad');return}
+  try{if(hrOn){await hrChar.stopNotifications();hrOn=false;$('hr').textContent='Ativar leitura ao vivo';$('heartState').textContent='Leitura pausada'}
+  else{await hrChar.startNotifications();hrOn=true;$('hr').textContent='Parar leitura ao vivo';$('heartState').textContent='Aguardando dados do relógio'}}
+  catch(e){msg('Falha na leitura: '+e.message,'bad')}
+};
+if(!window.isSecureContext)msg('Bluetooth exige uma página HTTPS.');
+</script>
+</body>
+</html>
